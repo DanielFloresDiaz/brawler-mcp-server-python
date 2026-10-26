@@ -1,10 +1,10 @@
 # Brawler MCP Server (Python)
 
-FastMCP wrapper that tags tools with **agent tasks** so a client can list and run context, completion, evaluation, post, skill, and none tools from one MCP server.
+FastMCP wrapper that tags tools with **agent tasks** so a client can list and run context, completion, evaluation, post, and none tools from one MCP server.
 
 This is not a fork of [FastMCP](https://github.com/PrefectHQ/fastmcp). It depends on FastMCP 4 and subclasses `FastMCP`. Later language ports (`brawler-mcp-server-typescript`, and so on) should implement the same wire contract.
 
-Brawler agents attach one MCP server as a resource, then fetch tools by task: context tools build the prompt, completion tools are offered to the model, post and eval tools run after a result, skill tools inject or load instructions.
+Brawler agents attach one MCP server as a resource, then fetch tools by task: context tools build the prompt, completion tools are offered to the model, post and eval tools run after a result. Native Brawler skills stay on the agent; MCP does not offer a skill task.
 
 ---
 
@@ -13,11 +13,11 @@ Brawler agents attach one MCP server as a resource, then fetch tools by task: co
 | FastMCP | This package |
 | --- | --- |
 | `@mcp.tool` | Same decorator, stamped as **completion** |
-| No task model | `@context_tool`, `@eval_tool`, `@post_tool`, `@skill_tool`, `@none_tool` |
+| No task model | `@context_tool`, `@eval_tool`, `@post_tool`, `@none_tool` |
 | Tags are optional | Every task decorator sets a task tag and `_meta.mcp_server` |
 | `tools/list` returns a flat list | Clients filter by `_meta.mcp_server.task` (or call `tools_by_task`) |
 
-Untagged tools from a plain FastMCP server are treated as **completion** by Brawler. Tools from this package always carry an explicit task.
+Untagged tools from a plain FastMCP server are treated as **completion** by Brawler. Tools from this package always carry an explicit task. FastMCP tags that are not agent tasks (for example `skill`, `router`, `training`) are ignored when resolving the task; an unknown ``mcp_server.task`` value is treated as **none**.
 
 ---
 
@@ -70,17 +70,6 @@ def audit(answer: str) -> None:
     return None
 
 
-@mcp.skill_tool(mode='always-on')
-def style() -> str:
-    return """---
-name: style
-description: Prefer short sentences.
----
-# Style
-Use short sentences.
-"""
-
-
 @mcp.none_tool
 def ping() -> str:
     """Visible to generic MCP clients; Brawler agents ignore none tools."""
@@ -93,7 +82,7 @@ if __name__ == '__main__':
 
 `mcp.run()` speaks stdio by default. Use FastMCP HTTP transports when you need a remote endpoint.
 
-Example server shipped with this package:
+Example server shipped in ``examples/``:
 
 ```bash
 uv run brawler-mcp-example
@@ -125,11 +114,10 @@ MCP `tools/list` has no task filter. Identity lives on each tool so any language
 
 | Field | Type | When |
 | --- | --- | --- |
-| `task` | `context` \| `completion` \| `evaluation` \| `post_tool` \| `skill` \| `none` | Always |
+| `task` | `context` \| `completion` \| `evaluation` \| `post_tool` \| `none` | Always |
 | `as_user_message` | `bool` | Context only. `true` injects the string as a user message instead of the system prompt. |
-| `mode` | `always-on` \| `auto` | Skill only. Always-on content is injected with context; auto skills are loaded by name. |
 
-FastMCP also copies the task into `_meta.fastmcp.tags`. Clients may use either field. If both are missing, treat the tool as `completion`.
+FastMCP also copies the task into `_meta.fastmcp.tags`. Clients may use either field. If both are missing, treat the tool as `completion`. If `task` is set to an unsupported value, treat the tool as `none`.
 
 ### Listing only context tools
 
@@ -154,7 +142,7 @@ context_tools = await mcp.tools_by_task('context')
 
 | Decorator | Python return | On the wire |
 | --- | --- | --- |
-| `@context_tool` / `@skill_tool` | `str` | Single text content |
+| `@context_tool` | `str` | Single text content |
 | `@eval_tool` | `tuple[bool, float, str \| None]` | JSON `{"is_valid": bool, "score": float, "feedback": str \| null}` |
 | `@post_tool` | `None` | Empty / ignored text |
 | `@tool` / `@none_tool` | FastMCP default | FastMCP default |
@@ -165,7 +153,7 @@ Decorators check the annotation at registration time.
 
 ## Agent tasks (this package)
 
-Router and training are not included. Those are not function-tool tasks on a Brawler agent.
+Router, training, and skill are not included. Router and training are not function-tool tasks on a Brawler agent. Skills are native Brawler tools, not MCP tasks.
 
 | Task | Decorator | Agent use |
 | --- | --- | --- |
@@ -173,16 +161,15 @@ Router and training are not included. Those are not function-tool tasks on a Bra
 | `completion` | `@tool` | Model-callable tools |
 | `evaluation` | `@eval_tool` | After the final result |
 | `post_tool` | `@post_tool` | Side effects after the result, before eval |
-| `skill` | `@skill_tool` | Always-on context or auto `load_skill` |
 | `none` | `@none_tool` | Not used by Brawler agents |
 
 ---
 
 ## Using with Brawler
 
-Register the server as an MCP resource on an agent the same way as any other MCP connection (`MCPTool.from_server` / `agent.mcp(...)` / `POST /mcps`). The persisted row stays `entity_type=mcp` with `task=completion` (the connection). Remote tools carry the task in `_meta.mcp_server`.
+Register the server as an MCP resource on an agent the same way as any other MCP connection (`MCPClient.from_server` / `agent.mcp(...)` / `POST /mcps`). The persisted row stays `entity_type=mcp` with `task=completion` (the connection). Remote tools carry the task in `_meta.mcp_server`.
 
-At run time the agent lists tools, keeps completion tools for the model, and calls context / skill / post / eval tools at the matching pipeline stage.
+At run time the agent lists tools, keeps completion tools for the model, and calls context / post / eval tools at the matching pipeline stage.
 
 ---
 
@@ -190,9 +177,13 @@ At run time the agent lists tools, keeps completion tools for the model, and cal
 
 ```bash
 uv sync --all-extras --group lint --group dev
+uv run pytest tests/
 make test
 make typecheck
 ```
+
+If this repo is checked out as a submodule of brawler, `uv run` still uses this
+package's own environment. Do not run these tests with brawler's FastMCP 3 venv.
 
 ---
 

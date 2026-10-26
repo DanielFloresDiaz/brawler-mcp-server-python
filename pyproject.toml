@@ -26,7 +26,7 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "fastmcp>=4.1.3,<5",
+    "fastmcp>=4.1.1,<5",
 ]
 
 [project.urls]
@@ -35,10 +35,11 @@ Source = "https://github.com/DanielFloresDiaz/brawler-mcp-server-python"
 Documentation = "https://github.com/DanielFloresDiaz/brawler-mcp-server-python#readme"
 
 [project.scripts]
-brawler-mcp-example = "brawler_mcp_server.example:main"
+brawler-mcp-example = "examples.example:main"
+brawler-mcp-task-server = "examples.task_server:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["brawler_mcp_server"]
+packages = ["brawler_mcp_server", "examples"]
 
 [dependency-groups]
 lint = [
@@ -103,12 +104,15 @@ filterwarnings = [
     "ignore::pytest.PytestUnraisableExceptionWarning",
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
+    # FastMCP/auth may import short HS256 oct keys in tests; joserfc warns but still works.
+    "ignore::joserfc.errors.SecurityWarning",
 ]
 
 [tool.coverage.run]
 omit = [
     "*/__init__.py",
-    "brawler_mcp_server/example.py",
+    "examples/*",
+    "brawler_mcp_server/testkit.py",
 ]
 source = [
     "brawler_mcp_server",
@@ -128,3 +132,7 @@ exclude_lines = [
     "@typing.overload",
     "if __name__ == .__main__.:",
 ]
+
+[tool.uv]
+exclude-newer = "1 week"
+default-groups = ["dev"]

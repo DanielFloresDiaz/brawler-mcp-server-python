@@ -46,7 +46,7 @@ typecheck: ## Run static type checking
 
 .PHONY: test
 test: ## Run tests and collect coverage data
-	uv run coverage run -m pytest -vv tests/
+	uv run --frozen coverage run -m pytest -vv tests/
 
 .PHONY: testcov
 testcov: test ## Run tests and generate a coverage report
