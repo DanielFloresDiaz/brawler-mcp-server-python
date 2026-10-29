@@ -185,6 +185,18 @@ make typecheck
 If this repo is checked out as a submodule of brawler, `uv run` still uses this
 package's own environment. Do not run these tests with brawler's FastMCP 3 venv.
 
+CI (`.github/workflows/testing.yaml`) runs lint, pyright, and pytest on pull requests to `main`. The release workflow (`.github/workflows/release.yaml`) runs the same tests, builds the package, creates a GitHub release from `changelogs/v<tag>.md`, and publishes to PyPI when a version tag is pushed.
+
+### Releasing
+
+1. Bump `version` in `pyproject.toml`.
+2. Add `changelogs/v<tag>.md` and update `changelogs/latest.md` to match (tag includes the `v` prefix, e.g. `v0.1.0`).
+3. Merge to `main`, then tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
+
+Before the first PyPI publish, register a **trusted publisher** on [pypi.org](https://pypi.org) for project `brawler-mcp-server-python`: owner `DanielFloresDiaz`, repository `brawler-mcp-server-python`, workflow name `release.yaml`, environment blank. No API token secret is required.
+
+After merging workflow changes, smoke-test locally with `uv build` and inspect `dist/`, then confirm the tag workflow uploads GitHub release assets and the new version appears on PyPI.
+
 ---
 
 ## License
